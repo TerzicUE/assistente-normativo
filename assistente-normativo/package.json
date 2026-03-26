@@ -1,6 +1,7 @@
 {
   "name": "assistente-normativo",
   "version": "1.0.0",
+  "type": "module",
   "dependencies": {
     "pdf-parse": "^1.1.1"
   }
