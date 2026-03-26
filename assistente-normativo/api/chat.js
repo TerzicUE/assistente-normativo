@@ -1,29 +1,35 @@
 import fs from "fs";
 import path from "path";
 
-async function extractTextFromPDF(buffer) {
-  const pdfParse = (await import("pdf-parse/lib/pdf-parse.js")).default;
-  const data = await pdfParse(buffer);
-  return data.text;
-}
-
 async function loadDocuments() {
-  const docsDir = path.join(process.cwd(), "docs");
-  if (!fs.existsSync(docsDir)) return "";
-  const files = fs.readdirSync(docsDir).filter(f => f.endsWith(".pdf"));
-  if (files.length === 0) return "";
-  let context = "Documenti normativi disponibili:\n\n";
-  for (const file of files) {
-    try {
-      const buffer = fs.readFileSync(path.join(docsDir, file));
-      const text = await extractTextFromPDF(buffer);
-      const name = file.replace(".pdf", "").replace(/_/g, " ");
-      context += `--- ${name} ---\n${text.slice(0, 8000)}\n\n`;
-    } catch(e) {
-      context += `--- ${file} --- (errore lettura)\n\n`;
+  try {
+    const pdfParse = (await import("pdf-parse/lib/pdf-parse.js")).default;
+    const docsDir = path.join(process.cwd(), "docs");
+    if (!fs.existsSync(docsDir)) {
+      console.log("Cartella docs non trovata:", docsDir);
+      return "";
     }
+    const files = fs.readdirSync(docsDir).filter(f => f.toLowerCase().endsWith(".pdf"));
+    console.log("PDF trovati:", files);
+    if (files.length === 0) return "";
+    let context = "Documenti normativi disponibili:\n\n";
+    for (const file of files) {
+      try {
+        const filePath = path.join(docsDir, file);
+        const buffer = fs.readFileSync(filePath);
+        const data = await pdfParse(buffer);
+        const name = file.replace(/\.pdf$/i, "").replace(/_/g, " ");
+        console.log(`Letto: ${file}, caratteri: ${data.text.length}`);
+        context += `--- ${name} ---\n${data.text.slice(0, 10000)}\n\n`;
+      } catch(e) {
+        console.log(`Errore lettura ${file}:`, e.message);
+      }
+    }
+    return context;
+  } catch(e) {
+    console.log("Errore loadDocuments:", e.message);
+    return "";
   }
-  return context;
 }
 
 export default async function handler(req, res) {
@@ -35,6 +41,7 @@ export default async function handler(req, res) {
 
   try {
     const docContext = await loadDocuments();
+    console.log("Contesto documenti lunghezza:", docContext.length);
 
     const systemPrompt = `Sei un assistente tecnico specializzato in norme e regolamenti per la costruzione e l'ingegneria in Svizzera, per lo studio TERZIC URBAN ENGINEERING.
 Rispondi SEMPRE in italiano, indipendentemente dalla lingua dei documenti.
@@ -59,6 +66,7 @@ ${docContext || "Nessun documento caricato al momento."}`;
     const data = await response.json();
     res.status(response.status).json(data);
   } catch(e) {
+    console.log("Errore handler:", e.message);
     res.status(500).json({ error: e.message });
   }
 }
