@@ -3,32 +3,22 @@ import path from "path";
 
 async function loadDocuments() {
   try {
-    const pdfParse = (await import("pdf-parse/lib/pdf-parse.js")).default;
     const docsDir = path.join(process.cwd(), "docs");
-    if (!fs.existsSync(docsDir)) {
-      console.log("Cartella docs non trovata:", docsDir);
-      return "";
-    }
+    if (!fs.existsSync(docsDir)) return [];
     const files = fs.readdirSync(docsDir).filter(f => f.toLowerCase().endsWith(".pdf"));
-    console.log("PDF trovati:", files);
-    if (files.length === 0) return "";
-    let context = "Documenti normativi disponibili:\n\n";
+    if (files.length === 0) return [];
+    const docs = [];
     for (const file of files) {
-      try {
-        const filePath = path.join(docsDir, file);
-        const buffer = fs.readFileSync(filePath);
-        const data = await pdfParse(buffer);
-        const name = file.replace(/\.pdf$/i, "").replace(/_/g, " ");
-        console.log(`Letto: ${file}, caratteri: ${data.text.length}`);
-        context += `--- ${name} ---\n${data.text.slice(0, 10000)}\n\n`;
-      } catch(e) {
-        console.log(`Errore lettura ${file}:`, e.message);
-      }
+      const filePath = path.join(docsDir, file);
+      const buffer = fs.readFileSync(filePath);
+      const base64 = buffer.toString("base64");
+      const name = file.replace(/\.pdf$/i, "").replace(/_/g, " ");
+      docs.push({ name, base64 });
     }
-    return context;
+    return docs;
   } catch(e) {
     console.log("Errore loadDocuments:", e.message);
-    return "";
+    return [];
   }
 }
 
@@ -40,25 +30,49 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   try {
-    const docContext = await loadDocuments();
-    console.log("Contesto documenti lunghezza:", docContext.length);
+    const docs = await loadDocuments();
+    console.log("Documenti trovati:", docs.map(d => d.name));
 
     const systemPrompt = `Sei un assistente tecnico specializzato in norme e regolamenti per la costruzione e l'ingegneria in Svizzera, per lo studio TERZIC URBAN ENGINEERING.
-Rispondi SEMPRE in italiano, indipendentemente dalla lingua dei documenti.
+Rispondi SEMPRE in italiano, indipendentemente dalla lingua dei documenti allegati.
 Quando citi un documento, fallo con precisione: nome del documento, numero articolo o capitolo, pagina se nota.
-Se un documento è disponibile nel contesto sottostante, citalo esplicitamente per nome e articolo.
-Se non trovi l'informazione esatta nei documenti, dillo chiaramente e proponi piste di ricerca.
+Basa le tue risposte sui documenti forniti. Se non trovi l'informazione esatta, dillo chiaramente e proponi piste di ricerca.`;
 
-${docContext || "Nessun documento caricato al momento."}`;
+    const userMessages = req.body.messages || [];
+    const lastUserMsg = userMessages[userMessages.length - 1];
 
-    const body = { ...req.body, system: systemPrompt };
+    // Costruisce il contenuto del messaggio utente con i PDF allegati
+    let userContent = [];
+    for (const doc of docs) {
+      userContent.push({
+        type: "document",
+        source: {
+          type: "base64",
+          media_type: "application/pdf",
+          data: doc.base64
+        },
+        title: doc.name
+      });
+    }
+    userContent.push({ type: "text", text: lastUserMsg?.content || "" });
+
+    // Costruisce la history senza l'ultimo messaggio (già incluso sopra)
+    const history = userMessages.slice(0, -1).map(m => ({ role: m.role, content: m.content }));
+
+    const body = {
+      model: req.body.model || "claude-haiku-4-5-20251001",
+      max_tokens: req.body.max_tokens || 1000,
+      system: systemPrompt,
+      messages: [...history, { role: "user", content: userContent }]
+    };
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "x-api-key": process.env.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01"
+        "anthropic-version": "2023-06-01",
+        "anthropic-beta": "pdfs-2024-09-25"
       },
       body: JSON.stringify(body)
     });
