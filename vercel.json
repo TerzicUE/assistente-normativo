@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "api/chat.js": {
+      "includeFiles": "../docs/**"
+    }
+  },
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
