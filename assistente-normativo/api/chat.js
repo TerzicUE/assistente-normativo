@@ -10,7 +10,6 @@ async function loadDocuments() {
     if (fs.existsSync(docsDir)) {
       console.log("contenuto:", fs.readdirSync(docsDir));
     }
-    if (!fs.existsSync(docsDir)) return [];
     const files = fs.readdirSync(docsDir).filter(f => f.toLowerCase().endsWith(".pdf"));
     if (files.length === 0) return [];
     const docs = [];
