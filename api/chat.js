@@ -37,7 +37,7 @@ function selectRelevantDocs(docs, question) {
       if (name.includes(kw)) score += 3;
     }
     // Parole chiave tematiche
-    if ((q.includes("posteggi") || q.includes("parcheggio") || q.includes("stationnement") || q.includes("parking")) &&
+    if ((q.includes("posteggi") || q.includes("parcheggio") || q.includes("parcheggi") || q.includes("corsie") || q.includes("corsia") || q.includes("garage") || q.includes("stationnement") || q.includes("parking") || q.includes("place")) &&
         name.match(/stationnement|posteggi|parking|291|280|281|292/)) score += 5;
     if ((q.includes("ciclabil") || q.includes("bici") || q.includes("vélo") || q.includes("cyclable")) &&
         name.match(/vélo|ciclistic|cyclable|066/)) score += 5;
