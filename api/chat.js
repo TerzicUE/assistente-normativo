@@ -10,13 +10,17 @@ async function loadDocuments() {
     if (fs.existsSync(docsDir)) {
       console.log("contenuto:", fs.readdirSync(docsDir));
     }
-    if (!fs.existsSync(docsDir)) return [];
     const files = fs.readdirSync(docsDir).filter(f => f.toLowerCase().endsWith(".pdf"));
     if (files.length === 0) return [];
     const docs = [];
     for (const file of files) {
       const filePath = path.join(docsDir, file);
       const buffer = fs.readFileSync(filePath);
+      // Limita a 5MB per file
+      if (buffer.length > 5 * 1024 * 1024) {
+        console.log(`File troppo grande, saltato: ${file} (${buffer.length} bytes)`);
+        continue;
+      }
       const base64 = buffer.toString("base64");
       const name = file.replace(/\.pdf$/i, "").replace(/_/g, " ");
       docs.push({ name, base64 });
